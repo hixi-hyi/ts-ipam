@@ -14,6 +14,4 @@ for (const reserve of reserves) {
     }
   }
 }
-//console.log(networkAddress);
-//console.log(smallestNetworkAddress);
 ipam.PrintTable(networkAddress);
