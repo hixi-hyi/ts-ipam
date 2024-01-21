@@ -136,10 +136,24 @@ export function CidrRange(address: string, prefix: number): ipNum.IPv4CidrRange 
   return range;
 }
 
-export interface NetworkAddress {
+export class NetworkAddress {
+  range: ipNum.IPv4CidrRange;
   address: string;
   prefix: number;
   label?: string;
+  reserved?: boolean;
+
+  public constructor(range: ipNum.IPv4CidrRange, label?: string) {
+    this.range = range;
+    this.address = range.getFirst().toString();
+    this.prefix = Number(range.cidrPrefix.getValue());
+    this.label = label;
+  }
+  public static reserve(address: string, prefix: number, label?: string): NetworkAddress {
+    const na = new NetworkAddress(CidrRange(address, prefix), label);
+    na.reserved = true;
+    return na;
+  }
 }
 
 export function CollectNetworkAddresses(networkAddress: string, minCidrPrefix: number, maxCidrPrefix: number): NetworkAddress[] {
@@ -147,7 +161,7 @@ export function CollectNetworkAddresses(networkAddress: string, minCidrPrefix: n
     if (range.cidrPrefix.getValue() === BigInt(maxCidrPrefix)) {
       return [];
     }
-    const result = [{ address: range.getFirst().toString(), prefix: Number(range.cidrPrefix.getValue()) }];
+    const result = [new NetworkAddress(range)];
     const [first, second] = range.split();
     return result.concat(iter(first, maxCidrPrefix), iter(second, maxCidrPrefix));
   }
@@ -156,7 +170,7 @@ export function CollectNetworkAddresses(networkAddress: string, minCidrPrefix: n
   return Array.from(new Set(iter(range, maxCidrPrefix + 1)));
 }
 
-export function findLongestNetworkAddress(addresses: NetworkAddress[]): string[] {
+export function findLongestNetworkAddress(addresses: NetworkAddress[]): NetworkAddress[] {
   if (addresses.length === 0) {
     return [];
   }
@@ -168,7 +182,7 @@ export function findLongestNetworkAddress(addresses: NetworkAddress[]): string[]
     }
   }
 
-  return addresses.filter((ip) => ip.prefix === longestPrefix).map((ip) => ip.address);
+  return addresses.filter((ip) => ip.prefix === longestPrefix);
 }
 
 export function PrintTable(networkAddresses: NetworkAddress[]) {
@@ -176,6 +190,7 @@ export function PrintTable(networkAddresses: NetworkAddress[]) {
   const prefixes = Array.from(new Set(networkAddresses.map((entry) => entry.prefix)))
     .sort((a, b) => a - b) // プレフィックスを昇順に並べ替え
     .map((prefix) => `/${prefix}`);
+  prefixes.push('reserved');
 
   // IPアドレスごとに行を作成
   const ipRows: Record<string, string[]> = {};
@@ -184,8 +199,12 @@ export function PrintTable(networkAddresses: NetworkAddress[]) {
     if (!ipRows[rowKey]) {
       ipRows[rowKey] = new Array(prefixes.length).fill('');
     }
-    const prefixIndex = prefixes.indexOf(`/${entry.prefix}`);
-    ipRows[rowKey][prefixIndex] = entry.label || entry.address;
+    if (entry.reserved) {
+      ipRows[rowKey][prefixes.length - 1] = entry.label || '';
+    } else {
+      const prefixIndex = prefixes.indexOf(`/${entry.prefix}`);
+      ipRows[rowKey][prefixIndex] = entry.address;
+    }
   });
 
   // 行データを配列に変換
