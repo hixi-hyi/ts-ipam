@@ -11,7 +11,7 @@ manager.printTable();
 manager.printCsv();
 console.log(manager.getReserved('dev-hixi').cidr);
 */
-manager = new ipam.CompletePoolManager(ipam.NETWORK_BLOCK_10, 16, 24, { addressFormat: ipam.ADDRESS_FORMAT_CIDR });
+manager = new ipam.CompletePoolManager(ipam.NETWORK_BLOCK_10, 21, 24, { addressFormat: ipam.ADDRESS_FORMAT_RANGE });
 manager.reserve('10.0.0.0/24', 'development for hixi', 'dev-hixi');
 manager.reserve('10.0.2.0/23', 'development for hixi2', 'dev-hixi2');
 manager.printTable();
