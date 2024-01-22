@@ -34,8 +34,8 @@ declare abstract class AbstractManager {
     private validate;
     protected formatAddress(range: ipNum.IPv4CidrRange): string;
     reserve(cidr: string, label: string, code?: string): boolean;
-    getReserve(code: string): NetworkAddress | undefined;
-    hasReserve(code: string): boolean;
+    getReserved(code: string): NetworkAddress | undefined;
+    hasReserved(code: string): boolean;
     printCsv(): void;
     abstract printTable(): void;
     protected abstract getContents(): string[][];

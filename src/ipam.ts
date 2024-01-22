@@ -96,23 +96,23 @@ abstract class AbstractManager {
     if (prefix < this.start || prefix > this.end) {
       throw new Error(`The prefix ${prefix} is not between ${this.start} and ${this.end}, inclusive.`);
     }
-    if (code && this.hasReserve(code)) {
+    if (code && this.hasReserved(code)) {
       throw new Error(`The code ${code} is already reserved.`);
     }
     this.reserved.push(new NetworkAddress(range, label, code));
     return true;
   }
-  public getReserve(code: string): NetworkAddress | undefined {
+  public getReserved(code: string): NetworkAddress | undefined {
     if (code === '') {
       return undefined;
     }
     return this.reserved.find((entry) => entry.code === code);
   }
-  public hasReserve(code: string): boolean {
+  public hasReserved(code: string): boolean {
     if (code === '') {
       return false;
     }
-    return this.getReserve(code) !== undefined;
+    return this.getReserved(code) !== undefined;
   }
   public printCsv(): void {
     const csv = this.getContents()
