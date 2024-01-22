@@ -1,4 +1,3 @@
-import { IPv4CidrRange } from 'ip-num/IPRange';
 import * as ipNum from 'ip-num';
 import { table } from 'table';
 
@@ -21,14 +20,14 @@ export class NetworkAddress {
   address: string;
   prefix: number;
   label: string;
-  code?: string;
+  code: string;
 
   public constructor(range: ipNum.IPv4CidrRange, label: string, code?: string) {
     this.range = range;
     this.address = range.getFirst().toString();
     this.prefix = Number(range.cidrPrefix.getValue());
     this.label = label;
-    this.code = code;
+    this.code = code || '';
   }
   public get cidr(): string {
     return this.range.toCidrString();
