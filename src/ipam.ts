@@ -159,48 +159,51 @@ export class ReservedManager extends AbstractManager {
     return [header, ...rows];
   }
 }
-//export class SummaryPoolManager extends AbstractManager {
-//  public readonly pool: ipNum.Pool<ipNum.RangedSet<ipNum.IPv4>>;
-//  constructor(props: ManagerProps) {
-//    super(props);
-//    this.pool = ipNum.Pool.fromCidrRanges([this.block.range]);
-//  }
-//  public reserve(cidr: string, label: string, code?: string): boolean {
-//    super.reserve(cidr, label, code);
-//    const isReserved = this.pool.removeOverlapping(ipNum.RangedSet.fromCidrRange(CidrRangeFromCidr(cidr)));
-//    if (this.throwException && !isReserved) {
-//      throw new Error(`Failed to allocate the address range ${cidr}.`);
-//    }
-//    return isReserved;
-//  }
-//  public printTable(): void {
-//    const config = {
-//      header: {
-//        content: `Reserved IP Address ${this.block.range.toCidrString()}`,
-//      },
-//    };
-//    console.log(table(this.getContents(), config));
-//  }
-//  protected getContents(): string[][] {
-//    const header = ['address', 'label', 'code'];
-//    const rows = [];
-//
-//    for (const rs of this.pool.getRanges()) {
-//      const rangeSet = rs as ipNum.RangedSet<ipNum.IPv4>;
-//      console.log(rangeSet.getSize());
-//      const available = rangeSet.toCidrRange() as ipNum.IPv4CidrRange;
-//      //console.log(available);
-//      console.log(available.toRangeString());
-//      console.log(this.formatAddress(available));
-//      rows.push([this.formatAddress(available), 'available', '']);
-//    }
-//    rows.push(
-//      ...this.reserved.sort((a, b) => a.address.localeCompare(b.address)).map((entry) => [this.formatAddress(entry.range), entry.label, entry.code])
-//    );
-//    return [header, ...rows];
-//  }
-//}
-//
+export class SummaryPoolManager extends AbstractManager {
+  protected getTableConfig(): TableUserConfig {
+    return {};
+  }
+  protected getContents(): string[][] {
+    const header = ['address', 'label', 'code'];
+    const rows = [];
+    const start = CidrRange(this.block.range.getFirst().toString(), this.start);
+    const networkAddresses = [];
+    networkAddresses.push(...start.splitInto(new ipNum.IPv4Prefix(BigInt(this.end))).map((range) => new NetworkAddress(range)));
+    const pool = ipNum.Pool.fromCidrRanges(networkAddresses.map((entry) => entry.range));
+    this.reserved.forEach((entry) => {
+      entry.range.splitInto(new ipNum.IPv4Prefix(BigInt(this.end))).forEach((range) => {
+        pool.removeOverlapping(ipNum.RangedSet.fromCidrRange(range));
+      });
+    });
+    const rs = pool.aggregate().getRanges();
+    const free: NetworkAddress[] = [];
+    rs.forEach((r) => {
+      free.push(new NetworkAddress(r.toCidrRange() as ipNum.IPv4CidrRange));
+    });
+    const aggregated = [...free, ...this.reserved];
+    aggregated
+      .sort((a, b) => Number(a.range.getFirst().getValue() - b.range.getFirst().getValue()))
+      .forEach((entry) => {
+        rows.push([this.formatAddress(entry), entry.label || '', entry.code || '']);
+      });
+    return [header, ...rows];
+
+    //for (const rs of this.pool.getRanges()) {
+    //  const rangeSet = rs as ipNum.RangedSet<ipNum.IPv4>;
+    //  console.log(rangeSet.getSize());
+    //  const available = rangeSet.toCidrRange() as ipNum.IPv4CidrRange;
+    //  //console.log(available);
+    //  console.log(available.toRangeString());
+    //  console.log(this.formatAddress(available));
+    //  rows.push([this.formatAddress(available), 'available', '']);
+    //}
+    //rows.push(
+    //  ...this.reserved.sort((a, b) => a.address.localeCompare(b.address)).map((entry) => [this.formatAddress(entry.range), entry.label, entry.code])
+    //);
+    //return [header, ...rows];
+  }
+}
+
 export class CompletePoolManager extends AbstractManager {
   public readonly networkAddresses: NetworkAddress[] = [];
   constructor(block: NetworkBlock, start: number, end: number, config: ManagerConfigProps = {}) {
