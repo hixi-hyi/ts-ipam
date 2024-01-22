@@ -1,4 +1,5 @@
 import * as ipNum from 'ip-num';
+import { config } from 'process';
 import { table } from 'table';
 
 const MIN_CIDR_PREFIX = 8; // 10.0.0.0/8
@@ -19,15 +20,15 @@ export class NetworkAddress {
   range: ipNum.IPv4CidrRange;
   address: string;
   prefix: number;
-  label: string;
-  code: string;
+  label?: string;
+  code?: string;
 
-  public constructor(range: ipNum.IPv4CidrRange, label: string, code?: string) {
+  public constructor(range: ipNum.IPv4CidrRange, label?: string, code?: string) {
     this.range = range;
     this.address = range.getFirst().toString();
     this.prefix = Number(range.cidrPrefix.getValue());
     this.label = label;
-    this.code = code || '';
+    this.code = code;
   }
   public get cidr(): string {
     return this.range.toCidrString();
@@ -79,7 +80,8 @@ abstract class AbstractManager {
       throw new Error(`End must be between ${MIN_CIDR_PREFIX} and ${MAX_CIDR_PREFIX}, inclusive.`);
     }
   }
-  protected formatAddress(range: ipNum.IPv4CidrRange): string {
+  protected formatAddress(address: NetworkAddress): string {
+    const range = address.range;
     if (this.addressFormat === ADDRESS_FORMAT_CIDR) {
       return range.toCidrString();
     } else {
@@ -96,23 +98,23 @@ abstract class AbstractManager {
     if (prefix < this.start || prefix > this.end) {
       throw new Error(`The prefix ${prefix} is not between ${this.start} and ${this.end}, inclusive.`);
     }
-    if (code && this.hasReserved(code)) {
+    if (code && this.isReserved(code)) {
       throw new Error(`The code ${code} is already reserved.`);
     }
     this.reserved.push(new NetworkAddress(range, label, code));
     return true;
   }
-  public getReserved(code: string): NetworkAddress | undefined {
+  public getReservation(code: string): NetworkAddress | undefined {
     if (code === '') {
       return undefined;
     }
     return this.reserved.find((entry) => entry.code === code);
   }
-  public hasReserved(code: string): boolean {
+  public isReserved(code: string): boolean {
     if (code === '') {
       return false;
     }
-    return this.getReserved(code) !== undefined;
+    return this.getReservation(code) !== undefined;
   }
   public printCsv(): void {
     const csv = this.getContents()
@@ -150,7 +152,7 @@ export class ReservedManager extends AbstractManager {
     const header = ['address', 'label', 'code'];
     const rows = this.reserved
       .sort((a, b) => a.address.localeCompare(b.address))
-      .map((entry) => [this.formatAddress(entry.range), entry.label, entry.code]);
+      .map((entry) => [this.formatAddress(entry), entry.label || '', entry.code || '']);
     return [header, ...rows];
   }
 }
@@ -196,7 +198,60 @@ export class ReservedManager extends AbstractManager {
 //  }
 //}
 //
-//// export class CompletePoolManager extends AbstractManager {
+export class CompletePoolManager extends AbstractManager {
+  public readonly pool: ipNum.Pool<ipNum.RangedSet<ipNum.IPv4>>;
+  public readonly networkAddresses: NetworkAddress[] = [];
+  constructor(block: NetworkBlock, start: number, end: number, config: ManagerConfigProps = {}) {
+    super(block, start, end, config);
+    this.pool = ipNum.Pool.fromCidrRanges([this.block.range]);
+    this.networkAddresses = this.collectAllNetworkAddresses();
+  }
+  printTable(): void {
+    console.log(table(this.getContents()));
+  }
+  protected getContents(): string[][] {
+    const prefixes = Array.from(new Set(this.networkAddresses.map((entry) => entry.prefix)))
+      .sort((a, b) => a - b)
+      .map((prefix) => `/${prefix}`);
+    prefixes.push('label', 'code');
+
+    const ipRows: Record<string, string[]> = {};
+    this.networkAddresses.forEach((entry) => {
+      const rowKey = entry.address;
+      if (!ipRows[rowKey]) {
+        ipRows[rowKey] = new Array(prefixes.length).fill('');
+      }
+      const prefixIndex = prefixes.indexOf(`/${entry.prefix}`);
+      ipRows[rowKey][prefixIndex] = entry.address;
+    });
+    this.reserved.forEach((entry) => {
+      entry.range.splitInto(new ipNum.IPv4Prefix(BigInt(this.end))).forEach((range) => {
+        const rowKey = range.getFirst().toString();
+        ipRows[rowKey][prefixes.length - 2] = entry.label || '';
+        ipRows[rowKey][prefixes.length - 1] = entry.code || '';
+      });
+    });
+
+    const rows = Object.values(ipRows);
+    return [prefixes, ...rows];
+  }
+  public reserve(cidr: string, label: string, code?: string): boolean {
+    super.reserve(cidr, label, code);
+    const isReserved = this.pool.removeOverlapping(ipNum.RangedSet.fromCidrRange(CidrRangeFromCidr(cidr)));
+    if (!isReserved) {
+      throw new Error(`Failed to allocate the address range ${cidr}.`);
+    }
+    return isReserved;
+  }
+  private collectAllNetworkAddresses(): NetworkAddress[] {
+    const start = CidrRange(this.block.range.getFirst().toString(), this.start);
+    const result = [];
+    for (let i = this.end; i >= this.start; i--) {
+      result.push(...start.splitInto(new ipNum.IPv4Prefix(BigInt(i))).map((range) => new NetworkAddress(range)));
+    }
+    return result;
+  }
+}
 //
 //
 //export function CollectNetworkAddresses(networkAddress: string, minCidrPrefix: number, maxCidrPrefix: number): NetworkAddress[] {
