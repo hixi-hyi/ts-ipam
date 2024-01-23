@@ -6,8 +6,12 @@ const MAX_CIDR_PREFIX = 24; // 192.168.0.0/24
 
 export class NetworkBlock {
   public readonly range: ipNum.IPv4CidrRange;
-  constructor(ip: string, prefix: number) {
-    this.range = CidrRange(ip, prefix);
+  public readonly address: string;
+  public readonly prefix: number;
+  constructor(address: string, prefix: number) {
+    this.address = address;
+    this.prefix = prefix;
+    this.range = CidrRange(address, prefix);
   }
 }
 
@@ -147,7 +151,7 @@ export class ReservedManager extends AbstractManager {
   protected getTableConfig(): TableUserConfig {
     return {
       header: {
-        content: `Reserved IP Address ${this.block.range.toCidrString()}`,
+        content: `Reserved IP Address ${this.block.address}/${this.start}-${this.end}`,
       },
     };
   }
@@ -161,11 +165,14 @@ export class ReservedManager extends AbstractManager {
 }
 export class SummaryPoolManager extends AbstractManager {
   protected getTableConfig(): TableUserConfig {
-    return {};
+    return {
+      header: {
+        content: `Summary Pool Address ${this.block.address}/${this.start}-${this.end}`,
+      },
+    };
   }
   protected getContents(): string[][] {
     const header = ['address', 'label', 'code'];
-    const rows = [];
     const start = CidrRange(this.block.range.getFirst().toString(), this.start);
     const networkAddresses = [];
     networkAddresses.push(...start.splitInto(new ipNum.IPv4Prefix(BigInt(this.end))).map((range) => new NetworkAddress(range)));
@@ -181,26 +188,10 @@ export class SummaryPoolManager extends AbstractManager {
       free.push(new NetworkAddress(r.toCidrRange() as ipNum.IPv4CidrRange));
     });
     const aggregated = [...free, ...this.reserved];
-    aggregated
+    const rows = aggregated
       .sort((a, b) => Number(a.range.getFirst().getValue() - b.range.getFirst().getValue()))
-      .forEach((entry) => {
-        rows.push([this.formatAddress(entry), entry.label || '', entry.code || '']);
-      });
+      .map((entry) => [this.formatAddress(entry), entry.label || '', entry.code || '']);
     return [header, ...rows];
-
-    //for (const rs of this.pool.getRanges()) {
-    //  const rangeSet = rs as ipNum.RangedSet<ipNum.IPv4>;
-    //  console.log(rangeSet.getSize());
-    //  const available = rangeSet.toCidrRange() as ipNum.IPv4CidrRange;
-    //  //console.log(available);
-    //  console.log(available.toRangeString());
-    //  console.log(this.formatAddress(available));
-    //  rows.push([this.formatAddress(available), 'available', '']);
-    //}
-    //rows.push(
-    //  ...this.reserved.sort((a, b) => a.address.localeCompare(b.address)).map((entry) => [this.formatAddress(entry.range), entry.label, entry.code])
-    //);
-    //return [header, ...rows];
   }
 }
 
@@ -211,7 +202,11 @@ export class CompletePoolManager extends AbstractManager {
     this.networkAddresses = this.collectAllNetworkAddresses();
   }
   protected getTableConfig(): TableUserConfig {
-    return {};
+    return {
+      header: {
+        content: `Complete Pool Address ${this.block.address}/${this.start}-${this.end}`,
+      },
+    };
   }
   protected getContents(): string[][] {
     const prefixes = Array.from(new Set(this.networkAddresses.map((entry) => entry.prefix)))

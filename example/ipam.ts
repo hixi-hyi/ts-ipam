@@ -1,21 +1,22 @@
 import * as ipam from '../src/ipam';
 import * as ipNum from 'ip-num';
 
-let manager;
-/*
-manager = new ipam.ReservedManager(ipam.NETWORK_BLOCK_10, 8, 24, { addressFormat: ipam.ADDRESS_FORMAT_RANGE });
-manager.reserve('10.0.0.0/16', 'production for hixi', 'prod-hixi');
-manager.reserve('10.1.0.0/24', 'development for hixi', 'dev-hixi');
-manager.reserve('10.1.1.0/24', 'development for hixi2', 'dev-hixi2');
-manager.printTable();
-manager.printCsv();
-console.log(manager.getReserved('dev-hixi').cidr);
-*/
-manager = new ipam.SummaryPoolManager(ipam.NETWORK_BLOCK_10, 8, 16, { addressFormat: ipam.ADDRESS_FORMAT_CIDR });
-manager.reserve('10.0.0.0/16', 'development for hixi', 'dev-hixi');
-manager.reserve('10.24.0.0/16', 'development for hixi', 'dev-hixi2');
-manager.printTable();
-//console.log(manager.getReservation('dev-hixi').cidr);
+const managerProps: [ipam.NetworkBlock, number, number, ipam.ManagerConfigProps] = [
+  ipam.NETWORK_BLOCK_10,
+  16,
+  24,
+  { addressFormat: ipam.ADDRESS_FORMAT_CIDR },
+];
+const managers = [
+  new ipam.ReservedManager(...managerProps),
+  new ipam.SummaryPoolManager(...managerProps),
+  new ipam.CompletePoolManager(...managerProps),
+];
+for (const manager of managers) {
+  manager.reserve('10.0.0.0/24', 'production for hixi', 'prod-hixi');
+  manager.reserve('10.0.2.0/23', 'development for hixi', 'dev-hixi');
+  manager.printTable();
+}
 
 //
 //manager = new ipam.SummaryPoolManager({ block: ipam.BLOCK_10, start: 8, end: 24, addressFormat: ipam.ADDRESS_FORMAT_RANGE });
